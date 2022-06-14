@@ -43,7 +43,7 @@ steel_ingot_1,45,iron_ore,coal,0,0,45,45,0,0
 steel_ingot_2,100,iron_ore,petroleum_coke,0,0,75,75,0,0
 steel_ingot_3,37.5,iron_ore,compacted_coal,0,0,22.5,11.25,0,0
 steel_ingot_4,60,iron_ingot,coal,0,0,40,40
-steel_beam,15,steel_ingot,0,0,0,60,0,0,0
+steel_beam_1,15,steel_ingot,0,0,0,60,0,0,0
 steel_pipe_1,20,steel_ingot,0,0,0,30,0,0,0
 versatile_framework_1,5,modular_frame,steel_beam,0,0,2.5,30
 versatile_framework_2,7.5,modular_frame,steel_beam,rubber,0,3.75,22.5,30,0
