@@ -1,7 +1,6 @@
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
-//import org.apache.commons.lang3.SerializationUtils;
 import com.opencsv.*;
 import com.opencsv.exceptions.CsvException;
 
@@ -9,7 +8,7 @@ public class Optimizer {
 
     private static void addNode(Dictionary<String,Node> graph, 
     Dictionary<String,Dictionary<String,String>> recipes, Enumeration<String> materials,
-    List<String> marked) {
+    List<String> marked, List<String> altRecipes) {
         String key = "";
         String graphKey = "";
         while (materials.hasMoreElements()) {
@@ -19,35 +18,32 @@ public class Optimizer {
                 Integer.valueOf(key);
                 //continue
             } catch (NumberFormatException N) {
-                Dictionary<String,String> recipe = recipes.get(formatLabel(key, true));
+                Integer recipeNumber = 1;
+                for (int i = 2; i < 5; i++) {
+                    if (altRecipes.contains(key + "_" + i)) {
+                        recipeNumber = i;
+                    }
+                }
+                Dictionary<String,String> recipe = recipes.get(formatLabel(key, recipeNumber));
                 if (recipe == null) continue;
                 Node nextNode = new Node(recipe);                  
-                graphKey = formatLabel(key, false);
+                graphKey = formatLabel(key, 0);
                 graph.put(graphKey, nextNode);
                 marked.add(key);
                 Enumeration<String> prerequisites = nextNode.getInfo().elements();
-                addNode(graph, recipes, prerequisites, marked);
+                addNode(graph, recipes, prerequisites, marked, altRecipes);
             }
         }
     }
 
-    private static String formatLabel(String oldLabel, boolean append) {
-        if (!append) {
+    private static String formatLabel(String oldLabel, int append) {
+        if (append == 0) {
             return oldLabel.contains("_1") ||
             oldLabel.contains("_2") || 
             oldLabel.contains("_3") || 
             oldLabel.contains("_4") ? oldLabel.substring(0,oldLabel.length()-2) : oldLabel;
         } else {
-            switch (oldLabel.substring(0, oldLabel.length()-2)) {
-                case "_1":
-                case "_2":
-                case "_3":
-                case "_4":
-                    return oldLabel;
-                default:
-                    //TODO implement this string to be flexible with what recipe is used
-                    return oldLabel + "_1";
-            }
+            return oldLabel + "_" + append;
         }
     }
 
@@ -79,11 +75,11 @@ public class Optimizer {
                         findRates(graph, marked, targets, graphKey);
                     }
                     if (material.equals(entry)) {
-
-                        System.out.println(graphKey);
-                        System.out.println(currMaterial.getModifier() + "\n");
-
-                        allRates.put(graphKey, Integer.valueOf(recipe.get("prate" + key.substring(key.length()-1, key.length()))) * currMaterial.getModifier());
+                        // this line does three main things:
+                        // 1. use the key's number in pre that corresponds to its respective prate to find the correct float
+                        // 2. multiply this value by modifier to adjust for demands that propagate up the graph
+                        // 3. add an entry to allRates so these edges can be added after checking all materials
+                        allRates.put(graphKey, Float.valueOf(recipe.get("prate" + key.substring(key.length()-1, key.length()))) * currMaterial.getModifier());
                     }
                 }
             }
@@ -116,23 +112,44 @@ public class Optimizer {
             }
 
             List<String> marked = new ArrayList<String>();
+            List<String> altRecipes = new ArrayList<String>();
+            Dictionary<String,Float> customTargets = new Hashtable<String,Float>();
+            boolean addAltRecipes = false;
+            String lastLabel = "";
 
-            //TODO edit this later to accomodate for custom rates and alternate recipes
-            for (String material: args) {
-                Dictionary<String,String> recipe = recipes.get(material);
-                Node currNode = new Node(recipe);
-                String formattedMaterial = formatLabel(material, false); 
-                graph.put(formattedMaterial, currNode);
-                marked.add(formattedMaterial);
-                targets.add(formattedMaterial);
-                //TODO custom rate area of concern
-                currNode.addEdge("Target", Float.valueOf(recipe.get("trate")));
+            for (int i = 0; i < args.length; i++) {
+                String material = args[i];
+                if (material.equals("-a")) {
+                    addAltRecipes = true;
+                } else if (addAltRecipes) {
+                    altRecipes.add(args[i]);
+                } else {
+                    Dictionary<String,String> recipe = recipes.get(material); 
+                    if (recipe == null) { // custom target; float expected
+                        customTargets.put(lastLabel, Float.valueOf(material));
+                    } else {
+                        Node currNode = new Node(recipe);
+                        String formattedMaterial = formatLabel(material, 0); 
+                        lastLabel = formattedMaterial;
+                        graph.put(formattedMaterial, currNode);
+                        marked.add(formattedMaterial);
+                        targets.add(formattedMaterial);
+                    }
+                }
             }
-
+            
             //first, add all necessary nodes
             for (String key: targets) {   
                 Enumeration<String> prerequisites = graph.get(key).getInfo().elements();
-                addNode(graph, recipes, prerequisites, marked);
+                addNode(graph, recipes, prerequisites, marked, altRecipes);
+            }
+
+            System.out.println(customTargets);
+            // add target edges to nodes of concern
+            for (String target: targets) {
+                Node targetNode = graph.get(target); 
+                Float targetVal = customTargets.get(target);
+                targetNode.addEdge("target", targetVal == null ? Float.valueOf(targetNode.getInfo().get("trate")) : targetVal);
             }
 
             //add all edges and their respective rates
@@ -143,7 +160,7 @@ public class Optimizer {
                         findRates(graph, marked, targets, iter.nextElement());
                     }
                 } catch (ConcurrentModificationException CM) {
-                    //i dont think thisll work but lets try :)
+                    // pass non-concurrent behavior and try again
                 }
             }          
 

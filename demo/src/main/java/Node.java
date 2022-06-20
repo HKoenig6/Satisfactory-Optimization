@@ -32,7 +32,7 @@ public class Node {
     }
 
     public float getModifier() {
-        int edgeSum = 0;
+        float edgeSum = 0;
         Enumeration<Float> values = edges.elements();
         while (values.hasMoreElements()) {
             edgeSum += values.nextElement();
